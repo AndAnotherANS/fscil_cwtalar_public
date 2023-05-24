@@ -1,0 +1,12 @@
+numpy
+scikit-learn
+matplotlib
+tqdm
+seaborn
+pip
+cw-torch==0.4.2
+wandb
+
+--extra-index-url https://download.pytorch.org/whl/cu117
+torch
+torchvision
