@@ -1,0 +1,40 @@
+dataset = 'cifar100'
+dataroot = ""
+
+# epochs
+base_epochs = 20
+incremental_epochs = 500
+first_cw_train_epochs = 800
+
+# optimizer
+base_lr = 0.1
+incremental_lr = 0.00001
+cw_pretraining_lr = 0.0001
+schedule = "Step" # choices: 'Step', 'Milestone', 'Cosine'
+decay = 0.0005
+
+# scheduler
+gamma = 0.5
+step = 5
+milestones = 60
+
+# other training params
+temperature = 10
+base_batch_size = 128
+incremental_batch_size = 25
+test_batch_size = 100
+
+incremental_cw_coefficient = 100000
+
+# model
+mode = "cos" # choices: "cos", "dot"
+cw_architecture = "encoder"
+
+# technical
+gpu = '0'
+num_workers = 0
+
+# wandb
+wandb_entity = ""
+wandb_project = ""
+logging_freq = 10
