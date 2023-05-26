@@ -32,6 +32,9 @@ class Net(nn.Module):
 
         self.pre_allocate = self.args.num_classes
         self.fc = nn.Linear(self.num_features, self.pre_allocate, bias=False)
+
+        self.fc_frozen = nn.Linear(self.num_features, self.pre_allocate)
+        self.fc_frozen.requires_grad_(False)
         
         nn.init.orthogonal_(self.fc.weight)
 
@@ -52,6 +55,15 @@ class Net(nn.Module):
             x = self.args.temperature * x
 
         return x, x_enc
+
+    def predict(self, x):
+        x_enc = self.encode(x)
+        if 'cos' in self.args.mode:
+            x = F.linear(F.normalize(x_enc, p=2, dim=-1), F.normalize(self.fc_frozen.weight, p=2, dim=-1))
+            x = self.args.temperature * x
+        else:
+            raise RuntimeError("only cos mode supported atm")
+        return x
 
     def get_cw_loss(self, embed):
         if self.args.cw_architecture == "generator":
@@ -86,7 +98,7 @@ class Net(nn.Module):
             data_index = (label_list == class_index).nonzero()
             embedding_this_class = embedding_list[data_index.squeeze(-1)].mean(0)
 
-            self.fc.weight.data[class_index] = embedding_this_class
+            self.fc_frozen.weight.data[class_index] = embedding_this_class
 
     def cw_architecture_train(self, cw_train):
         self.requires_grad_(not cw_train)
@@ -95,17 +107,22 @@ class Net(nn.Module):
     def init_cw_architecture(self):
         if self.args.cw_architecture == "generator":
             self.cw_architecture = nn.Sequential(
-                nn.Linear(self.num_features*2, self.num_features * 2),
+                nn.Linear(self.num_features*2, 128),
+                nn.BatchNorm1d(128),
                 nn.ReLU(),
-                nn.Linear(self.num_features * 2, self.num_features * 2),
+                nn.Linear(128, 256),
+                nn.BatchNorm1d(256),
                 nn.ReLU(),
-                nn.Linear(self.num_features * 2, self.num_features * 2),
+                nn.Linear(256, 512),
+                nn.BatchNorm1d(512),
                 nn.ReLU(),
-                nn.Linear(self.num_features*2, self.num_features),
+                nn.Linear(512, 1024),
                 nn.ReLU(),
-                nn.Linear(self.num_features, self.num_features),
+                nn.Linear(1024, 512),
                 nn.ReLU(),
-                nn.Linear(self.num_features, self.num_features)
+                nn.Linear(512, 256),
+                nn.ReLU(),
+                nn.Linear(256, self.num_features)
             )
 
         elif self.args.cw_architecture == "encoder":
@@ -118,17 +135,19 @@ class Net(nn.Module):
                 nn.ReLU(),
                 nn.Linear(self.num_features//2, self.num_features//4),
                 nn.BatchNorm1d(self.num_features//4),
-                nn.Linear(self.num_features//4, self.num_features//4)
+                nn.Linear(self.num_features//4, 5)
             )
 
         if self.args.cw_architecture == "encoder_same_dim":
             self.cw_architecture = nn.Sequential(
                 nn.Linear(self.num_features, self.num_features),
+                nn.BatchNorm1d(self.num_features),
                 nn.ReLU(),
                 nn.Linear(self.num_features, self.num_features),
+                nn.BatchNorm1d(self.num_features),
                 nn.ReLU(),
                 nn.Linear(self.num_features, self.num_features),
-                nn.ReLU(),
+                nn.BatchNorm1d(self.num_features),
                 nn.Linear(self.num_features, self.num_features)
             )
 

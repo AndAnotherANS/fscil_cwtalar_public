@@ -1,3 +1,4 @@
+import torch
 import wandb
 
 from utils import *
@@ -96,10 +97,12 @@ def incremental_train(model, trainloader, optimizer, scheduler, args, session):
         for i, batch in enumerate(trainloader, 1):
             data, train_label = [_.to(args.device) for _ in batch]
 
-            train_label = train_label - classes[0]
+            #train_label = train_label - classes[0]
 
-            logits, embed = model(data)
-            logits_ = logits[:, classes]
+            logits_current, embed = model(data)
+            logits_previous = model.module.predict(data)
+
+            logits_ = torch.concatenate([logits_previous[:, :np.min(classes)], logits_current[:, classes]], 1)
 
             ce_loss = F.cross_entropy(logits_, train_label.long())
             cw_loss = model.module.get_cw_loss(embed)
@@ -143,14 +146,17 @@ def test_one_task(model, testloader, session, args):
     ta = Averager()
     model = model.eval()
 
-    classes = get_classes(session, args)
+    if not args.cumulative_testing:
+        classes = get_classes(session, args)
+    else:
+        classes = get_classes_cumulative(session, args)
 
     with torch.no_grad():
         for i, batch in enumerate(testloader, 1):
             data, train_label = [_.to(args.device) for _ in batch]
 
             train_label = train_label - classes[0]
-            logits, _ = model(data)
+            logits = model.predict(data)
             logits_ = logits[:, classes]
 
             acc = count_acc(logits_, train_label)
@@ -166,5 +172,9 @@ def get_classes(session, args):
         classes = np.arange(0, args.base_class)
     else:
         classes = np.arange(args.base_class + (session - 1) * args.way, args.base_class + session * args.way)
+    return classes
+
+def get_classes_cumulative(session, args):
+    classes = np.arange(0, args.base_class + session * args.way)
     return classes
 

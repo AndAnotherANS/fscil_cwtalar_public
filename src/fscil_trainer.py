@@ -82,7 +82,7 @@ class FSCILTrainer:
             if session == 0:
                 for epoch in range(args.base_epochs):
                     train_loss, train_acc = base_train(self.model, trainloader, optimizer, scheduler, epoch, args)
-                    test_acc = self.test_separately()[0]
+                    test_acc = self.test()[0]
                     log_wandb(args, {"Base_Session/train_loss": train_loss,
                                      "Base_Session/train_acc": train_acc,
                                      "Base_Session/test_acc": test_acc})
@@ -98,7 +98,7 @@ class FSCILTrainer:
 
 
             self.model = self.model.eval()
-            accuracy_matrix[session] = self.test_separately()
+            accuracy_matrix[session] = self.test()
 
 
         fig, ax = plt.subplots(figsize=(11, 10))
@@ -109,13 +109,14 @@ class FSCILTrainer:
 
 
 
-    def test_separately(self):
+    def test(self):
         accuracies, losses = [], []
         bar = tqdm(self.test_dataloaders)
         bar.set_description("Testing sessions:")
         for session, loader in enumerate(bar):
             ta = test_one_task(self.model.module, loader, session, self.args)
             accuracies.append(ta)
+        print(accuracies)
 
         accuracies = accuracies + [0] * (self.args.sessions - len(accuracies))
         return np.array(accuracies)
