@@ -169,13 +169,13 @@ def get_new_dataloader(args, dataset, session):
     if args.incremental_batch_size == 0:
         batch_size_new = trainset.__len__()
         trainloader = torch.utils.data.DataLoader(dataset=trainset, batch_size=batch_size_new, shuffle=False,
-                                                  num_workers=args.num_workers, pin_memory=True)
+                                                  num_workers=0, pin_memory=True)
     else:
         trainloader = torch.utils.data.DataLoader(dataset=trainset, batch_size=args.incremental_batch_size, shuffle=True,
-                                                  num_workers=args.num_workers, pin_memory=True)
+                                                  num_workers=0, pin_memory=True)
 
-    # test loader with classes from this session only
-    class_new = get_train_session_classes(args, session)
+    # test loader with classes from this session only or all previous sessions
+    class_new = get_train_session_classes(args, session) if not args.cumulative_testing else get_classes_up_to_session(args, session)
 
     if args.dataset == 'cifar100':
         testset = dataset.CIFAR100(root=args.dataroot, train=False, download=False,

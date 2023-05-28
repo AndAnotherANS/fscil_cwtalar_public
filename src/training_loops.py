@@ -146,10 +146,8 @@ def test_one_task(model, testloader, session, args):
     ta = Averager()
     model = model.eval()
 
-    if not args.cumulative_testing:
-        classes = get_classes(session, args)
-    else:
-        classes = get_classes_cumulative(session, args)
+
+    classes = get_classes_cumulative(session, args)
 
     with torch.no_grad():
         for i, batch in enumerate(testloader, 1):

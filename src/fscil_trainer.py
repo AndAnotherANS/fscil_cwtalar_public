@@ -69,7 +69,7 @@ class FSCILTrainer:
     def train(self):
         args = self.args
 
-        accuracy_matrix = np.zeros([args.sessions, args.sessions])
+        accuracy_matrix = np.zeros([args.sessions, args.sessions]) if not args.cumulative_testing else np.zeros([args.sessions])
         for session in range(args.sessions):
             self.model = self.model.train()
             train_set, trainloader, testloader = self.get_dataloader(session)
@@ -102,7 +102,7 @@ class FSCILTrainer:
 
 
         fig, ax = plt.subplots(figsize=(11, 10))
-        heatmap = sns.heatmap(accuracy_matrix, annot=True, ax=ax)
+        heatmap = sns.heatmap(np.atleast_2d(accuracy_matrix), annot=True, ax=ax)
         image = wandb.Image(heatmap.get_figure(), caption="Accuracy per task heatmap")
 
         log_wandb(args, {"Heatmaps": image})
@@ -110,13 +110,19 @@ class FSCILTrainer:
 
 
     def test(self):
-        accuracies, losses = [], []
-        bar = tqdm(self.test_dataloaders)
-        bar.set_description("Testing sessions:")
-        for session, loader in enumerate(bar):
-            ta = test_one_task(self.model.module, loader, session, self.args)
-            accuracies.append(ta)
-        print(accuracies)
+        if not self.args.cumulative_testing:
+            accuracies = []
+            bar = tqdm(self.test_dataloaders)
+            bar.set_description("Testing sessions:")
+            for session, loader in enumerate(bar):
+                ta = test_one_task(self.model.module, loader, session, self.args)
+                accuracies.append(ta)
+            print(accuracies)
 
-        accuracies = accuracies + [0] * (self.args.sessions - len(accuracies))
-        return np.array(accuracies)
+            accuracies = accuracies + [0] * (self.args.sessions - len(accuracies))
+            return np.array(accuracies)
+
+        else:
+            loader = self.test_dataloaders[-1]
+            ta = test_one_task(self.model.module, loader, len(self.test_dataloaders) - 1, self.args)
+            return np.array([ta])

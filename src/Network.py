@@ -135,7 +135,7 @@ class Net(nn.Module):
                 nn.ReLU(),
                 nn.Linear(self.num_features//2, self.num_features//4),
                 nn.BatchNorm1d(self.num_features//4),
-                nn.Linear(self.num_features//4, 5)
+                nn.Linear(self.num_features//4, self.args.encoder_latent_dim)
             )
 
         if self.args.cw_architecture == "encoder_same_dim":
