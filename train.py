@@ -1,5 +1,8 @@
 import argparse
+import copy
+import itertools
 import tomllib
+from sklearn.model_selection import ParameterGrid
 
 import wandb
 
@@ -14,7 +17,11 @@ class Namespace:
 def parse_config(path):
     with open(path, "rb") as file:
         config_dict = tomllib.load(file)
-    return Namespace(config_dict)
+    for key, val in config_dict.items():
+        if not isinstance(val, list):
+            config_dict[key] = [val]
+    params = ParameterGrid(config_dict)
+    return [Namespace(p) for p in params]
 
 def set_up_wandb(args):
     if hasattr(args, "wandb_entity") and hasattr(args, "wandb_project"):
@@ -33,13 +40,12 @@ if __name__ == '__main__':
     parser.add_argument("--config", type=str, required=True, help="config file path")
     config_path = parser.parse_args().config
 
-    args = parse_config(config_path)
+    args_list = parse_config(config_path)
+    set_up_wandb(args_list[0])
 
-    pprint(vars(args))
+    for args in args_list:
 
-    set_up_wandb(args)
-
-    args.num_gpu = set_gpu(args)
-    args.device = "cuda" if args.num_gpu != 0 else "cpu"
-    trainer = FSCILTrainer(args)
-    trainer.train()
+        args.num_gpu = set_gpu(args)
+        args.device = "cuda" if args.num_gpu != 0 else "cpu"
+        trainer = FSCILTrainer(args)
+        trainer.train()

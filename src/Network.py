@@ -46,13 +46,8 @@ class Net(nn.Module):
 
     def forward(self, x):
         x_enc = self.encode(x)
-        if 'cos' in self.args.mode:
-            x = F.linear(F.normalize(x_enc, p=2, dim=-1), F.normalize(self.fc.weight, p=2, dim=-1))
-            x = self.args.temperature * x
-
-        elif 'dot' in self.args.mode:
-            x = self.fc(x_enc)
-            x = self.args.temperature * x
+        x = F.linear(F.normalize(x_enc, p=2, dim=-1), F.normalize(self.fc.weight, p=2, dim=-1))
+        x = self.args.temperature * x
 
         return x, x_enc
 
@@ -66,12 +61,6 @@ class Net(nn.Module):
         return x
 
     def get_cw_loss(self, embed):
-        if self.args.cw_architecture == "generator":
-            noise = torch.normal(0, 1, [embed.shape[0], self.num_features*2]).to(self.args.device)
-            generated = self.cw_architecture(noise)
-            gamma = silverman_rule_of_thumb_sample(torch.cat([embed, generated], dim=0))
-            return cw(embed, generated, gamma=gamma)
-
         if self.args.cw_architecture in ["encoder", "encoder_same_dim"]:
             encoded = self.cw_architecture(embed)
             gamma = silverman_rule_of_thumb_sample(torch.cat([encoded], dim=0))
@@ -105,27 +94,7 @@ class Net(nn.Module):
         self.cw_architecture.requires_grad_(cw_train)
 
     def init_cw_architecture(self):
-        if self.args.cw_architecture == "generator":
-            self.cw_architecture = nn.Sequential(
-                nn.Linear(self.num_features*2, 128),
-                nn.BatchNorm1d(128),
-                nn.ReLU(),
-                nn.Linear(128, 256),
-                nn.BatchNorm1d(256),
-                nn.ReLU(),
-                nn.Linear(256, 512),
-                nn.BatchNorm1d(512),
-                nn.ReLU(),
-                nn.Linear(512, 1024),
-                nn.ReLU(),
-                nn.Linear(1024, 512),
-                nn.ReLU(),
-                nn.Linear(512, 256),
-                nn.ReLU(),
-                nn.Linear(256, self.num_features)
-            )
-
-        elif self.args.cw_architecture == "encoder":
+        if self.args.cw_architecture == "encoder":
             self.cw_architecture = nn.Sequential(
                 nn.Linear(self.num_features, self.num_features),
                 nn.BatchNorm1d(self.num_features),
@@ -137,18 +106,4 @@ class Net(nn.Module):
                 nn.BatchNorm1d(self.num_features//4),
                 nn.Linear(self.num_features//4, self.args.encoder_latent_dim)
             )
-
-        if self.args.cw_architecture == "encoder_same_dim":
-            self.cw_architecture = nn.Sequential(
-                nn.Linear(self.num_features, self.num_features),
-                nn.BatchNorm1d(self.num_features),
-                nn.ReLU(),
-                nn.Linear(self.num_features, self.num_features),
-                nn.BatchNorm1d(self.num_features),
-                nn.ReLU(),
-                nn.Linear(self.num_features, self.num_features),
-                nn.BatchNorm1d(self.num_features),
-                nn.Linear(self.num_features, self.num_features)
-            )
-
         self.cw_architecture.requires_grad_(False)

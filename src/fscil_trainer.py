@@ -80,20 +80,26 @@ class FSCILTrainer:
             self.test_dataloaders.append(testloader)
             
             if session == 0:
-                for epoch in range(args.base_epochs):
-                    train_loss, train_acc = base_train(self.model, trainloader, optimizer, scheduler, epoch, args)
-                    test_acc = self.test()[0]
-                    log_wandb(args, {"Base_Session/train_loss": train_loss,
-                                     "Base_Session/train_acc": train_acc,
-                                     "Base_Session/test_acc": test_acc})
-                    print(f"Session 0 Epoch {epoch}: train loss={train_loss}, train accuracy={train_acc}, test accuracy={test_acc}")
-                    scheduler.step()
+                if os.path.exists(f"./models/saved_base_{self.args.encoder_latent_dim}"):
+                    self.model.module.load_state_dict(torch.load(f"./models/saved_base_{self.args.encoder_latent_dim}"))
+
+                else:
+                    for epoch in range(args.base_epochs):
+                        train_loss, train_acc = base_train(self.model, trainloader, optimizer, scheduler, epoch, args)
+                        test_acc = self.test()[0]
+                        log_wandb(args, {"Base_Session/train_loss": train_loss,
+                                         "Base_Session/train_acc": train_acc,
+                                         "Base_Session/test_acc": test_acc})
+                        print(f"Session 0 Epoch {epoch}: train loss={train_loss}, train accuracy={train_acc}, test accuracy={test_acc}")
+                        scheduler.step()
+
+                    train_encoder(self.model, trainloader, args)
+                    self.model.module.replace_fc_weights(train_set)
+                    torch.save(self.model.module.state_dict(), f"./models/saved_base_{self.args.encoder_latent_dim}")
 
 
             else:  # incremental learning sessions
                 incremental_train(self.model, trainloader, optimizer, scheduler, args, session)
-
-            if args.mode == "cos":
                 self.model.module.replace_fc_weights(train_set)
 
 
@@ -105,7 +111,7 @@ class FSCILTrainer:
         heatmap = sns.heatmap(np.atleast_2d(accuracy_matrix), annot=True, ax=ax)
         image = wandb.Image(heatmap.get_figure(), caption="Accuracy per task heatmap")
 
-        log_wandb(args, {"Heatmaps": image})
+        log_wandb(args, {f"Heatmaps/CW_coeff_{args.incremental_cw_coefficient}_encoder_dim_{args.encoder_latent_dim}": image})
 
 
 

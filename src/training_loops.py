@@ -42,16 +42,8 @@ def base_train(model, trainloader, optimizer, scheduler, epoch, args):
     return tl, ta
 
 
-def incremental_train(model, trainloader, optimizer, scheduler, args, session):
-
-    model = model.train()
-
-    if session == 1:
-        tqdm_epoch = tqdm(range(args.first_cw_train_epochs))
-    else:
-        tqdm_epoch = tqdm(range(args.incremental_epochs))
-
-    classes = get_classes(session, args)
+def train_encoder(model, trainloader, args):
+    tqdm_epoch = tqdm(range(args.first_cw_train_epochs))
 
     # train cw architecture from classifier
     model.module.cw_architecture_train(True)
@@ -75,12 +67,14 @@ def incremental_train(model, trainloader, optimizer, scheduler, args, session):
             total_loss.backward()
             optimizer_cw.step()
 
+            if hasattr(args, "logging_freq") and epoch % args.logging_freq == 0:
+                log_wandb(args, {f"Encoder_training/pretrain_loss": pretrain_avg.item()})
+                pretrain_avg.reset()
 
-        if hasattr(args, "logging_freq") and epoch % args.logging_freq == 0:
-            log_wandb(args, {f"Incremental_sessions/Session_{session}/pretrain_loss" : pretrain_avg.item()})
-            pretrain_avg.reset()
+def incremental_train(model, trainloader, optimizer, scheduler, args, session):
 
-
+    model = model.train()
+    classes = get_classes(session, args)
 
     # train classifier from data and previous generator
     tqdm_epoch = tqdm(range(args.incremental_epochs))
@@ -97,7 +91,6 @@ def incremental_train(model, trainloader, optimizer, scheduler, args, session):
         for i, batch in enumerate(trainloader, 1):
             data, train_label = [_.to(args.device) for _ in batch]
 
-            #train_label = train_label - classes[0]
 
             logits_current, embed = model(data)
             logits_previous = model.module.predict(data)
@@ -130,9 +123,10 @@ def incremental_train(model, trainloader, optimizer, scheduler, args, session):
             optimizer.step()
 
         if hasattr(args, "logging_freq") and epoch % args.logging_freq == 0:
-            log_wandb(args, {f"Incremental_sessions/Session_{session}/ce_loss": ce_avg.item(),
-                             f"Incremental_sessions/Session_{session}/accuracy": acc_avg.item(),
-                             f"Incremental_sessions/Session_{session}/cw_loss": cw_avg.item()})
+            base = f"Incremental_sessions/Session_{session}/CW_coeff_{args.incremental_cw_coefficient}_encoder_dim_{args.encoder_latent_dim}"
+            log_wandb(args, {base + "/ce_loss": ce_avg.item(),
+                             base + "/accuracy": acc_avg.item(),
+                             base + "/cw_loss": cw_avg.item()})
             cw_avg.reset()
             ce_avg.reset()
             acc_avg.reset()
