@@ -116,19 +116,6 @@ class FSCILTrainer:
 
 
     def test(self):
-        if not self.args.cumulative_testing:
-            accuracies = []
-            bar = tqdm(self.test_dataloaders)
-            bar.set_description("Testing sessions:")
-            for session, loader in enumerate(bar):
-                ta = test_one_task(self.model.module, loader, session, self.args)
-                accuracies.append(ta)
-            print(accuracies)
-
-            accuracies = accuracies + [0] * (self.args.sessions - len(accuracies))
-            return np.array(accuracies)
-
-        else:
-            loader = self.test_dataloaders[-1]
-            ta = test_one_task(self.model.module, loader, len(self.test_dataloaders) - 1, self.args)
-            return np.array([ta])
+        loader = self.test_dataloaders[-1]
+        accuracies = test_tasks_up_to_session(self.model.module, loader, len(self.test_dataloaders) - 1, self.args)
+        return accuracies if not self.args.cumulative_testing else np.mean(accuracies)

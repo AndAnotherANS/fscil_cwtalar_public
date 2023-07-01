@@ -136,27 +136,34 @@ def incremental_train(model, trainloader, optimizer, scheduler, args, session):
     return tl, ta
 
 
-def test_one_task(model, testloader, session, args):
-    ta = Averager()
+def test_tasks_up_to_session(model, testloader, session, args):
+    accuracy_counters = [Averager() for _ in range(session + 1)]
     model = model.eval()
 
 
-    classes = get_classes_cumulative(session, args)
+    classes, cls_max = get_classes_cumulative(session, args)
+
+    logits_all, targets_all = [], []
 
     with torch.no_grad():
         for i, batch in enumerate(testloader, 1):
             data, train_label = [_.to(args.device) for _ in batch]
 
-            train_label = train_label - classes[0]
             logits = model.predict(data)
-            logits_ = logits[:, classes]
+            logits_all.append(logits[:, :cls_max].detach().cpu())
+            targets_all.append(train_label.detach().cpu())
 
-            acc = count_acc(logits_, train_label)
 
-            ta.add(acc)
+    logits_all = torch.concatenate(logits_all, 0)
+    targets_all = torch.concatenate(targets_all, 0)
 
-    ta = ta.item()
-    return ta
+    for sess_cls, acc_counter_sess in zip(classes, accuracy_counters):
+        logits_sess, targets_sess = logits_all[torch.isin(targets_all, sess_cls)], targets_all[torch.isin(targets_all, sess_cls)]
+
+        acc = count_acc(logits_sess, targets_sess)
+
+        acc_counter_sess.add(acc)
+    return np.array([ta.item() for ta in accuracy_counters])
 
 
 def get_classes(session, args):
@@ -167,6 +174,7 @@ def get_classes(session, args):
     return classes
 
 def get_classes_cumulative(session, args):
-    classes = np.arange(0, args.base_class + session * args.way)
-    return classes
+    classes = [torch.arange(0, args.base_class)] + \
+              [torch.arange(args.base_class + i * args.way, args.base_class + (i+1) * args.way) for i in range(session)]
+    return classes, args.base_class + session * args.way
 
