@@ -104,7 +104,7 @@ class FSCILTrainer:
 
 
             self.model = self.model.eval()
-            accuracy_matrix[session] = self.test()
+            accuracy_matrix[session, :(session+1)] = self.test()
 
 
         fig, ax = plt.subplots(figsize=(11, 10))
