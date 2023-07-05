@@ -43,12 +43,14 @@ def base_train(model, trainloader, optimizer, scheduler, epoch, args):
 
 
 def train_encoder(model, trainloader, args):
+    if model.module.last_cw_encoder is not None:
+        args.first_cw_train_epochs = 30
     tqdm_epoch = tqdm(range(args.first_cw_train_epochs))
 
     # train cw architecture from classifier
-    model.module.cw_architecture_train(True)
+    model.module.encoder_train(True)
 
-    optimizer_cw = torch.optim.Adam(model.module.cw_architecture.parameters(), lr=args.cw_pretraining_lr)
+    optimizer_cw = torch.optim.Adam(model.module.cw_encoder.parameters(), lr=args.cw_pretraining_lr)
     pretrain_avg = Averager()
     for epoch in tqdm_epoch:
         for i, batch in enumerate(trainloader, 1):
@@ -57,7 +59,8 @@ def train_encoder(model, trainloader, args):
             _, embed = model(data)
 
             cw_loss = model.module.get_cw_loss(embed)
-            total_loss = cw_loss
+            l1_loss = model.module.get_l1_loss()
+            total_loss = cw_loss + 10 * l1_loss
 
             tqdm_epoch.set_description(f"CW pretraining loss {total_loss.item()}")
 
@@ -71,17 +74,19 @@ def train_encoder(model, trainloader, args):
                 log_wandb(args, {f"Encoder_training/pretrain_loss": pretrain_avg.item()})
                 pretrain_avg.reset()
 
+    model.module.store_previous_encoder()
+    model.module.encoder_train(False)
+
 def incremental_train(model, trainloader, optimizer, scheduler, args, session):
 
     model = model.train()
     classes = get_classes(session, args)
 
-    # train classifier from data and previous generator
+    # train classifier from data and previous encoder
     tqdm_epoch = tqdm(range(args.incremental_epochs))
     tl = Averager()
     ta = Averager()
 
-    model.module.cw_architecture_train(False)
 
     ce_avg = Averager()
     cw_avg = Averager()
@@ -130,6 +135,9 @@ def incremental_train(model, trainloader, optimizer, scheduler, args, session):
             cw_avg.reset()
             ce_avg.reset()
             acc_avg.reset()
+
+
+    #train_encoder(model, trainloader, args)
 
     tl = tl.item()
     ta = ta.item()

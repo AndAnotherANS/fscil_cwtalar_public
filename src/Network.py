@@ -1,4 +1,5 @@
 import argparse
+import copy
 
 import torch
 import torch.nn as nn
@@ -28,7 +29,7 @@ class Net(nn.Module):
             self.num_features = 512
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
 
-        self.init_cw_architecture()
+        self.init_cw_encoder()
 
         self.pre_allocate = self.args.num_classes
         self.fc = nn.Linear(self.num_features, self.pre_allocate, bias=False)
@@ -61,11 +62,18 @@ class Net(nn.Module):
         return x
 
     def get_cw_loss(self, embed):
-        if self.args.cw_architecture in ["encoder", "encoder_same_dim"]:
-            encoded = self.cw_architecture(embed)
-            gamma = silverman_rule_of_thumb_sample(torch.cat([encoded], dim=0))
-            return cw_normality(encoded, gamma=gamma)
+        encoded = self.cw_encoder(embed)
+        gamma = silverman_rule_of_thumb_sample(torch.cat([encoded], dim=0))
+        return cw_normality(encoded, gamma=gamma)
 
+    def get_l1_loss(self):
+        l1_loss = torch.zeros(1).to(self.args.device)
+        if self.last_cw_encoder is None:
+            return l1_loss
+        for name, param in self.cw_encoder.named_parameters(recurse=True):
+            l1_loss += torch.abs(param - self.last_cw_encoder.get_parameter(name)).mean()
+
+        return l1_loss
 
     def replace_fc_weights(self, trainset):
         trainloader = torch.utils.data.DataLoader(dataset=trainset, batch_size=128,
@@ -89,21 +97,28 @@ class Net(nn.Module):
 
             self.fc_frozen.weight.data[class_index] = embedding_this_class
 
-    def cw_architecture_train(self, cw_train):
+    def encoder_train(self, cw_train):
         self.requires_grad_(not cw_train)
-        self.cw_architecture.requires_grad_(cw_train)
+        self.cw_encoder.requires_grad_(cw_train)
+        self.fc_frozen.requires_grad_(False)
+        if self.last_cw_encoder is not None:
+            self.last_cw_encoder.requires_grad_(False)
 
-    def init_cw_architecture(self):
-        if self.args.cw_architecture == "encoder":
-            self.cw_architecture = nn.Sequential(
-                nn.Linear(self.num_features, self.num_features),
-                nn.BatchNorm1d(self.num_features),
-                nn.ReLU(),
-                nn.Linear(self.num_features, self.num_features//2),
-                nn.BatchNorm1d(self.num_features//2),
-                nn.ReLU(),
-                nn.Linear(self.num_features//2, self.num_features//4),
-                nn.BatchNorm1d(self.num_features//4),
-                nn.Linear(self.num_features//4, self.args.encoder_latent_dim)
-            )
-        self.cw_architecture.requires_grad_(False)
+    def init_cw_encoder(self):
+        self.cw_encoder = nn.Sequential(
+            nn.Linear(self.num_features, self.num_features),
+            nn.BatchNorm1d(self.num_features),
+            nn.ReLU(),
+            nn.Linear(self.num_features, self.num_features//2),
+            nn.BatchNorm1d(self.num_features//2),
+            nn.ReLU(),
+            nn.Linear(self.num_features//2, self.num_features//4),
+            nn.BatchNorm1d(self.num_features//4),
+            nn.Linear(self.num_features//4, self.args.encoder_latent_dim)
+        )
+        self.last_cw_encoder = None
+        self.cw_encoder.requires_grad_(False)
+
+    def store_previous_encoder(self):
+        self.last_cw_encoder = copy.deepcopy(self.cw_encoder)
+        self.last_cw_encoder.requires_grad_(False)

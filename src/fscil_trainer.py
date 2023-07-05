@@ -81,6 +81,7 @@ class FSCILTrainer:
             
             if session == 0:
                 if os.path.exists(f"./models/saved_base_{self.args.encoder_latent_dim}"):
+                    self.model.module.store_previous_encoder()
                     self.model.module.load_state_dict(torch.load(f"./models/saved_base_{self.args.encoder_latent_dim}"))
 
                 else:
