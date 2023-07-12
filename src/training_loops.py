@@ -44,7 +44,7 @@ def base_train(model, trainloader, optimizer, scheduler, epoch, args):
 
 def train_encoder(model, trainloader, args):
     if model.module.last_cw_encoder is not None:
-        args.first_cw_train_epochs = 30
+        args.first_cw_train_epochs = 3000
     tqdm_epoch = tqdm(range(args.first_cw_train_epochs))
 
     # train cw architecture from classifier
@@ -60,7 +60,7 @@ def train_encoder(model, trainloader, args):
 
             cw_loss = model.module.get_cw_loss(embed)
             l1_loss = model.module.get_l1_loss()
-            total_loss = cw_loss + 10 * l1_loss
+            total_loss = cw_loss + args.l1_coeff * l1_loss
 
             tqdm_epoch.set_description(f"CW pretraining loss {total_loss.item()}")
 
@@ -137,7 +137,7 @@ def incremental_train(model, trainloader, optimizer, scheduler, args, session):
             acc_avg.reset()
 
 
-    #train_encoder(model, trainloader, args)
+    train_encoder(model, trainloader, args)
 
     tl = tl.item()
     ta = ta.item()

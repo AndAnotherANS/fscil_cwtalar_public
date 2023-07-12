@@ -69,7 +69,7 @@ class FSCILTrainer:
     def train(self):
         args = self.args
 
-        accuracy_matrix = np.zeros([args.sessions, args.sessions]) if not args.cumulative_testing else np.zeros([args.sessions])
+        accuracy_matrix = np.zeros([args.sessions, args.sessions])
         for session in range(args.sessions):
             self.model = self.model.train()
             train_set, trainloader, testloader = self.get_dataloader(session)
@@ -87,11 +87,10 @@ class FSCILTrainer:
                 else:
                     for epoch in range(args.base_epochs):
                         train_loss, train_acc = base_train(self.model, trainloader, optimizer, scheduler, epoch, args)
-                        test_acc = self.test()[0]
+                        
                         log_wandb(args, {"Base_Session/train_loss": train_loss,
-                                         "Base_Session/train_acc": train_acc,
-                                         "Base_Session/test_acc": test_acc})
-                        print(f"Session 0 Epoch {epoch}: train loss={train_loss}, train accuracy={train_acc}, test accuracy={test_acc}")
+                                         "Base_Session/train_acc": train_acc})
+                        print(f"Session 0 Epoch {epoch}: train loss={train_loss}, train accuracy={train_acc}")
                         scheduler.step()
 
                     train_encoder(self.model, trainloader, args)
@@ -112,7 +111,7 @@ class FSCILTrainer:
         heatmap = sns.heatmap(np.atleast_2d(accuracy_matrix), annot=True, ax=ax)
         image = wandb.Image(heatmap.get_figure(), caption="Accuracy per task heatmap")
 
-        log_wandb(args, {f"Heatmaps/CW_coeff_{args.incremental_cw_coefficient}_encoder_dim_{args.encoder_latent_dim}": image})
+        log_wandb(args, {f"Heatmaps/CW_coeff_{args.incremental_cw_coefficient}_l1_coeff_{args.l1_coeff}_epochs_{args.incremental_epochs}": image})
 
 
 
