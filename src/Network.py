@@ -61,10 +61,16 @@ class Net(nn.Module):
         return x
 
     def get_cw_loss(self, embed):
-        if self.args.cw_architecture in ["encoder", "encoder_same_dim"]:
+        if "encoder" in self.args.cw_architecture:
             encoded = self.cw_architecture(embed)
             gamma = silverman_rule_of_thumb_sample(torch.cat([encoded], dim=0))
             return cw_normality(encoded, gamma=gamma)
+
+        if self.args.cw_architecture == "generator":
+            noise = torch.normal(0., 1., (embed.shape[0], self.args.latent_dim)).to(self.args.device)
+            encoded = self.cw_architecture(noise)
+            gamma = silverman_rule_of_thumb_sample(torch.cat([encoded, embed], dim=0))
+            return cw(encoded, embed, gamma=gamma)
 
 
     def replace_fc_weights(self, trainset):
@@ -92,6 +98,7 @@ class Net(nn.Module):
     def cw_architecture_train(self, cw_train):
         self.requires_grad_(not cw_train)
         self.cw_architecture.requires_grad_(cw_train)
+        self.fc_frozen.requires_grad_(False)
 
     def init_cw_architecture(self):
         if self.args.cw_architecture == "encoder":
@@ -104,6 +111,18 @@ class Net(nn.Module):
                 nn.ReLU(),
                 nn.Linear(self.num_features//2, self.num_features//4),
                 nn.BatchNorm1d(self.num_features//4),
-                nn.Linear(self.num_features//4, self.args.encoder_latent_dim)
+                nn.Linear(self.num_features//4, self.args.latent_dim)
+            )
+        if self.args.cw_architecture == "generator":
+            self.cw_architecture = nn.Sequential(
+                nn.Linear(self.args.latent_dim, self.num_features//2),
+                nn.BatchNorm1d(self.num_features//2),
+                nn.ReLU(),
+                nn.Linear(self.num_features//2, self.num_features//2),
+                nn.BatchNorm1d(self.num_features//2),
+                nn.ReLU(),
+                nn.Linear(self.num_features//2, self.num_features),
+                nn.BatchNorm1d(self.num_features),
+                nn.Linear(self.num_features, self.num_features)
             )
         self.cw_architecture.requires_grad_(False)

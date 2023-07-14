@@ -80,22 +80,26 @@ class FSCILTrainer:
             self.test_dataloaders.append(testloader)
             
             if session == 0:
-                if os.path.exists(f"./models/saved_base_{self.args.encoder_latent_dim}"):
-                    self.model.module.load_state_dict(torch.load(f"./models/saved_base_{self.args.encoder_latent_dim}"))
+                if os.path.exists(f"./models/saved_base_{self.args.latent_dim}"):
+                    self.model.module.load_state_dict(torch.load(f"./models/saved_base_{self.args.latent_dim}"))
+                    '''self.model.module.init_cw_architecture()
+                    self.model.to(self.args.device)
+                    train_encoder(self.model, trainloader, args)
+                    self.model.module.replace_fc_weights(train_set)
+                    torch.save(self.model.module.state_dict(), f"./models/saved_base_{self.args.latent_dim}")'''
 
                 else:
                     for epoch in range(args.base_epochs):
                         train_loss, train_acc = base_train(self.model, trainloader, optimizer, scheduler, epoch, args)
-                        test_acc = self.test()[0]
+
                         log_wandb(args, {"Base_Session/train_loss": train_loss,
-                                         "Base_Session/train_acc": train_acc,
-                                         "Base_Session/test_acc": test_acc})
-                        print(f"Session 0 Epoch {epoch}: train loss={train_loss}, train accuracy={train_acc}, test accuracy={test_acc}")
+                                         "Base_Session/train_acc": train_acc})
+                        print(f"Session 0 Epoch {epoch}: train loss={train_loss}, train accuracy={train_acc}")
                         scheduler.step()
 
                     train_encoder(self.model, trainloader, args)
                     self.model.module.replace_fc_weights(train_set)
-                    torch.save(self.model.module.state_dict(), f"./models/saved_base_{self.args.encoder_latent_dim}")
+                    torch.save(self.model.module.state_dict(), f"./models/saved_base_{self.args.latent_dim}")
 
 
             else:  # incremental learning sessions
@@ -104,14 +108,14 @@ class FSCILTrainer:
 
 
             self.model = self.model.eval()
-            accuracy_matrix[session] = self.test()
+            accuracy_matrix[session, :(session+1)] = self.test()
 
 
         fig, ax = plt.subplots(figsize=(11, 10))
         heatmap = sns.heatmap(np.atleast_2d(accuracy_matrix), annot=True, ax=ax)
         image = wandb.Image(heatmap.get_figure(), caption="Accuracy per task heatmap")
 
-        log_wandb(args, {f"Heatmaps/CW_coeff_{args.incremental_cw_coefficient}_encoder_dim_{args.encoder_latent_dim}": image})
+        log_wandb(args, {f"Heatmaps/CW_coeff_{args.incremental_cw_coefficient}_encoder_dim_{args.latent_dim}": image})
 
 
 

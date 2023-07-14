@@ -123,7 +123,7 @@ def incremental_train(model, trainloader, optimizer, scheduler, args, session):
             optimizer.step()
 
         if hasattr(args, "logging_freq") and epoch % args.logging_freq == 0:
-            base = f"Incremental_sessions/Session_{session}/CW_coeff_{args.incremental_cw_coefficient}_encoder_dim_{args.encoder_latent_dim}"
+            base = f"Incremental_sessions/Session_{session}/CW_coeff_{args.incremental_cw_coefficient}_encoder_dim_{args.latent_dim}"
             log_wandb(args, {base + "/ce_loss": ce_avg.item(),
                              base + "/accuracy": acc_avg.item(),
                              base + "/cw_loss": cw_avg.item()})
